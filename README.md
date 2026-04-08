@@ -26,19 +26,19 @@ Hệ thống có khả năng:
 
 ## Cấu trúc dự án
 
-DA_DeepLearning/
-├── data/ # Dataset (images, videos mẫu)
-├── models/ # File trọng số (.pt)
-├── runs/ # Kết quả training YOLO
-├── src/
-│ ├── detection.py # Nhận diện tai nạn (YOLO)
-│ ├── tracking.py # Theo dõi đối tượng
-│ ├── alert_system.py # Gửi cảnh báo
-│ └── utils.py # Hàm hỗ trợ
-├── app.py # Dashboard (Streamlit)
-├── best.pt # Model đã train
-├── requirements.txt
-└── README.md
+DA_DeepLearning/  
+├── data/ # Dataset (images, videos mẫu)  
+├── models/ # File trọng số (.pt)  
+├── runs/ # Kết quả training YOLO  
+├── src/  
+│ ├── detection.py # Nhận diện tai nạn (YOLO)  
+│ ├── tracking.py # Theo dõi đối tượng  
+│ ├── alert_system.py # Gửi cảnh báo  
+│ └── utils.py # Hàm hỗ trợ  
+├── app.py # Dashboard (Streamlit)  
+├── best.pt # Model đã train  
+├── requirements.txt  
+└── README.md  
 
 ---
 
