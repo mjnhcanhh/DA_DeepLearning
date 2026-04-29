@@ -1,82 +1,260 @@
-<<<<<<< HEAD
-# 🚨 Mô hình AI nhận diện tai nạn và hỗ trợ phản ứng khẩn cấp thời gian thực
+# 🚨 DA_DeepLearning — Hệ Thống Phát Hiện Tai Nạn Giao Thông
 
-## 📁 Cấu trúc dự án
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
+[![YOLOv12](https://img.shields.io/badge/Model-YOLOv12-green.svg)]()
+[![CRNN](https://img.shields.io/badge/Model-CRNN-orange.svg)]()
+[![SSD](https://img.shields.io/badge/Model-SSD-red.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+
+> Đồ án tốt nghiệp — Hệ thống phát hiện tai nạn giao thông tự động sử dụng kết hợp ba mô hình học sâu: **YOLOv12**, **CRNN** và **SSD**, cho ra một kết quả dự đoán cuối cùng thông qua cơ chế kết hợp đầu ra (ensemble).
+
+---
+
+## 📋 Mục Lục
+
+- [Giới thiệu](#-giới-thiệu)
+- [Kiến trúc hệ thống](#-kiến-trúc-hệ-thống)
+- [Cấu trúc thư mục](#-cấu-trúc-thư-mục)
+- [Yêu cầu hệ thống](#-yêu-cầu-hệ-thống)
+- [Cài đặt](#-cài-đặt)
+- [Huấn luyện mô hình](#-huấn-luyện-mô-hình)
+- [Chạy ứng dụng](#-chạy-ứng-dụng)
+- [Kết quả](#-kết-quả)
+- [Tác giả](#-tác-giả)
+
+---
+
+## 🎯 Giới Thiệu
+
+Tai nạn giao thông là vấn đề nghiêm trọng, gây ra thiệt hại lớn về người và tài sản. Hệ thống này ứng dụng học sâu để **tự động phát hiện tai nạn qua camera/video**, từ đó cảnh báo kịp thời.
+
+### Điểm nổi bật:
+- **Kết hợp 3 mô hình** (YOLOv12 + CRNN + SSD) cho độ chính xác cao hơn từng mô hình riêng lẻ
+- Phát hiện tai nạn theo **thời gian thực**
+- Giao diện web trực quan qua **Flask** (`app.py`)
+- Hỗ trợ đầu vào: **ảnh, video, webcam**
+
+---
+
+## 🏗 Kiến Trúc Hệ Thống
 
 ```
-├── data/               # Dataset (images, videos mẫu)
-├── models/             # File trọng số .pt hoặc .h5 đã huấn luyện
-├── src/
-=======
-Mô hình AI nhận diện tai nạn và hỗ trợ phản ứng khẩn cấp thời gian thực
-Giới thiệu (Overview)
-Dự án được phát triển bởi nhóm sinh viên HUIT. Hệ thống sử dụng các mô hình Deep Learning tiên tiến để giám sát khu vực đường đi bộ/vỉa hè, tự động phát hiện các hành vi vi phạm giao thông và đặc biệt là nhận diện tai nạn.
-- Khi có sự cố, hệ thống sẽ ngay lập tức:
- - Chụp ảnh hiện trường làm bằng chứng.
- - Định vị vị trí xảy ra tai nạn.
- - Gửi thông báo khẩn cấp (Email/Telegram) kèm hình ảnh tới cơ quan chức năng (Công an, Bệnh viện).
-Công nghệ sử dụng
-- Ngôn ngữ: Python 3.9+
-- Deep Learning Framework: PyTorch, Ultralytics (YOLOv11/v8).
-- Thị giác máy tính: OpenCV, MediaPipe.
-- Giao diện: Streamlit / Flask.
--Database & Log: SQLite / CSV để lưu trữ lịch sử tai nạn.
-Dữ liệu 
-Cấu trúc dự án
+Input (Ảnh / Video)
+        │
+        ▼
+┌───────────────────────────────────────────┐
+│              Tiền xử lý                   │
+│     (Resize, Normalize, Frame Extract)    │
+└───────────┬───────────┬───────────────────┘
+            │           │           │
+            ▼           ▼           ▼
+       ┌─────────┐ ┌─────────┐ ┌─────────┐
+       │ YOLOv12 │ │  CRNN   │ │   SSD   │
+       │(Phát hiện│ │(Trình tự│ │(Phát hiện│
+       │ vật thể)│ │ thời gian│ │ vật thể)│
+       └────┬────┘ └────┬────┘ └────┬────┘
+            │           │           │
+            └─────────┬─────────────┘
+                       ▼
+            ┌─────────────────────┐
+            │  Ensemble / Fusion  │
+            │  (Kết hợp đầu ra)  │
+            └──────────┬──────────┘
+                       ▼
+            ┌─────────────────────┐
+            │   Kết Quả Cuối Cùng │
+            │  Có / Không tai nạn │
+            └─────────────────────┘
+```
+
+### Vai trò của từng mô hình:
+
+| Mô hình | Vai trò | Đặc điểm |
+|---------|---------|-----------|
+| **YOLOv12** | Phát hiện vật thể theo thời gian thực | Tốc độ cao, độ chính xác tốt với vật thể di chuyển |
+| **CRNN** | Phân tích chuỗi thời gian từ video | Khai thác thông tin thời gian giữa các frame liên tiếp |
+| **SSD** | Phát hiện vật thể đa tỷ lệ | Mạnh với vật thể nhiều kích thước khác nhau |
+
+---
+
+## 📁 Cấu Trúc Thư Mục
+
+```
 DA_DeepLearning/
-├── data/               # Chứa dataset (images, videos mẫu)
-├── models/             # Chứa file trọng số .pt hoặc .h5 đã huấn luyện
-├── src/                # Mã nguồn chính
->>>>>>> d0f5d888907ac2602b8b003eafbf0916ba1717f2
-│   ├── detection.py    # Module nhận diện vật thể & tai nạn
-│   ├── tracking.py     # Module theo dõi quỹ đạo đối tượng
-│   ├── alert_system.py # Module gửi thông báo (Email/API)
-│   └── utils.py        # Các hàm bổ trợ xử lý hình ảnh
-<<<<<<< HEAD
-├── app.py              # File chạy giao diện Dashboard (Streamlit)
-├── requirements.txt    # Danh sách thư viện cần cài đặt
-└── README.md
+├── Models/                  # Trọng số đã huấn luyện (.pt, .pth, .h5)
+│   ├── yolov12_accident.pt
+│   ├── crnn_accident.pth
+│   └── ssd_accident.pth
+│
+├── runs/                    # Kết quả huấn luyện (log, metrics, charts)
+│   └── train/
+│       ├── yolov12/
+│       ├── crnn/
+│       └── ssd/
+│
+├── src/                     # Mã nguồn chính
+│   ├── models/              # Định nghĩa kiến trúc mô hình
+│   │   ├── yolov12.py
+│   │   ├── crnn.py
+│   │   └── ssd.py
+│   ├── train/               # Script huấn luyện từng mô hình
+│   ├── predict/             # Script dự đoán / inference
+│   ├── ensemble.py          # Kết hợp đầu ra 3 mô hình
+│   └── utils.py             # Hàm tiện ích chung
+│
+├── templates/               # Giao diện web (HTML)
+│   └── index.html
+│
+├── venv/                    # Môi trường ảo Python
+├── app.py                   # Ứng dụng Flask chính (28 KB)
+├── requirements.txt         # Các thư viện cần thiết
+└── .gitignore
 ```
 
-## 🤖 3 Thuật toán được so sánh
+---
 
-| Hạng | Thuật toán | mAP@0.5 | FPS | Model Size |
-|------|-----------|---------|-----|------------|
-| 🏆 #1 | **YOLOv8** | **94.7%** | 47.2 | 22.5 MB |
-| 🥈 #2 | SSD MobileNet | 87.3% | **62.8** | **14.2 MB** |
-| 🥉 #3 | Faster R-CNN | 91.5% | 18.4 | 167 MB |
+## ⚙️ Yêu Cầu Hệ Thống
 
-## ⚡ Cài đặt & Chạy
+- **Python** >= 3.8
+- **GPU** khuyến nghị: NVIDIA với CUDA >= 11.3 (có thể chạy CPU nhưng chậm hơn)
+- **RAM** >= 8 GB
+- **Dung lượng** >= 5 GB (dataset + models)
+
+---
+
+## 🚀 Cài Đặt
+
+### 1. Clone repository
 
 ```bash
-# 1. Cài đặt thư viện
-pip install -r requirements.txt
-
-# 2. Chạy dashboard
-streamlit run app.py
+git clone https://github.com/<your-username>/DA_DeepLearning.git
+cd DA_DeepLearning
 ```
 
-## 📊 Biểu đồ so sánh
+### 2. Tạo môi trường ảo và cài thư viện
 
-Dashboard tự động hiển thị **3 biểu đồ so sánh**:
+```bash
+python -m venv venv
 
-1. **🕸️ Radar Chart** — Tổng quan đa chiều (mAP, Precision, Recall, F1)
-2. **📊 Grouped Bar Chart** — So sánh từng chỉ số accuracy
-3. **🎯 Scatter Plot** — Trade-off: Tốc độ (FPS) vs Độ chính xác (mAP)
+# Windows
+venv\Scripts\activate
 
-> YOLOv8 xếp **#1** và hiển thị **đầu tiên** trong mọi biểu đồ
-=======
-├── app.py              # File chạy giao diện Dashboard
-├── requirements.txt    # Danh sách các thư viện cần cài đặt
-└── README.md
-Hướng dẫn cài đặt
-Bước 1: Clone repository
-git clone https://github.com/your-username/sers-accident-detection.git
-cd sers-accident-detection
-Bước 2: Cài đặt môi trường
+# Linux / macOS
+source venv/bin/activate
+
 pip install -r requirements.txt
-Bước 3: Chạy hệ thống
-python app.pyS
-Hướng dẫn sử dụng 
-Kết quả mong đợi 
->>>>>>> d0f5d888907ac2602b8b003eafbf0916ba1717f2
+```
+
+### 3. Tải trọng số mô hình (nếu chưa có)
+
+Đặt các file trọng số vào thư mục `Models/`:
+```
+Models/
+├── yolov12_accident.pt
+├── crnn_accident.pth
+└── ssd_accident.pth
+```
+
+---
+
+## 🏋️ Huấn Luyện Mô Hình
+
+> ☁️ **Toàn bộ quá trình huấn luyện được thực hiện trên [Google Colab](https://colab.research.google.com/) với GPU T4/A100 miễn phí.**
+
+### Quy trình huấn luyện trên Colab:
+
+1. Upload dataset lên **Google Drive**
+2. Mở notebook tương ứng trên Colab
+3. Mount Google Drive:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+4. Cài đặt thư viện:
+
+```python
+!pip install ultralytics torch torchvision opencv-python
+```
+
+5. Chạy huấn luyện từng mô hình:
+
+```python
+# YOLOv12
+!yolo task=detect mode=train model=yolov12n.pt data=/content/drive/MyDrive/accident.yaml epochs=100 batch=16
+
+# CRNN
+!python src/train/train_crnn.py --data /content/drive/MyDrive/data/ --epochs 50
+
+# SSD
+!python src/train/train_ssd.py --data /content/drive/MyDrive/data/ --epochs 100
+```
+
+6. Sau khi train xong, **tải file trọng số `.pt` / `.pth` về** và đặt vào thư mục `Models/` của project.
+
+> 📁 Notebook Colab: [`notebooks/train_yolov12.ipynb`](notebooks/), [`notebooks/train_crnn.ipynb`](notebooks/), [`notebooks/train_ssd.ipynb`](notebooks/)
+
+Kết quả huấn luyện (loss, accuracy, confusion matrix) được lưu tự động vào thư mục `runs/`.
+
+---
+
+## ▶️ Chạy Ứng Dụng
+
+### Khởi động server Flask
+
+```bash
+python app.py
+```
+
+Mở trình duyệt và truy cập: **http://localhost:5000**
+
+### Tính năng giao diện:
+- 📷 Upload ảnh/video để phân tích
+- 🎥 Kết nối webcam phát hiện thời gian thực
+- 📊 Hiển thị xác suất dự đoán từng mô hình và kết quả tổng hợp
+
+---
+
+## 📊 Kết Quả
+
+| Mô hình | Accuracy | Precision | Recall | F1-Score |
+|---------|----------|-----------|--------|----------|
+| YOLOv12 | ~xx% | ~xx% | ~xx% | ~xx% |
+| CRNN | ~xx% | ~xx% | ~xx% | ~xx% |
+| SSD | ~xx% | ~xx% | ~xx% | ~xx% |
+| **Ensemble** | **~xx%** | **~xx%** | **~xx%** | **~xx%** |
+
+> 📝 *Cập nhật kết quả thực tế sau khi huấn luyện xong.*
+
+---
+
+## 🛠 Công Nghệ Sử Dụng
+
+- [PyTorch](https://pytorch.org/) — Framework học sâu chính
+- [Ultralytics YOLOv12](https://github.com/ultralytics/ultralytics) — Object detection
+- [Flask](https://flask.palletsprojects.com/) — Web framework
+- [OpenCV](https://opencv.org/) — Xử lý ảnh và video
+- [NumPy](https://numpy.org/) / [Pandas](https://pandas.pydata.org/) — Xử lý dữ liệu
+
+---
+
+## 👨‍💻 Tác Giả
+
+| Thông tin | Chi tiết |
+|-----------|----------|
+| **Họ tên** | *(Tên của bạn)* |
+| **MSSV** | *(Mã số sinh viên)* |
+| **Trường** | *(Tên trường)* |
+| **GVHD** | *(Tên giáo viên hướng dẫn)* |
+| **Năm** | 2026 |
+
+---
+
+## 📄 Giấy Phép
+
+Dự án này được phân phối theo giấy phép [MIT](LICENSE).
+
+---
+
+<p align="center">⭐ Nếu thấy hữu ích, hãy cho dự án một star!</p>
