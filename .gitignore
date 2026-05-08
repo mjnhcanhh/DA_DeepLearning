@@ -1,4 +1,19 @@
-venv/
-.venv/
+# Python
+__pycache__/
+*.pyc
+
+# Dataset
+Data/
+
+# Models
+*.pth
+*.h5
 *.pt
-runs/
+*.zip
+
+# VSCode
+.vscode/
+
+# Environment
+venv/
+.env
