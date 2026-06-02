@@ -173,6 +173,45 @@ def compare_algorithms() -> dict:
     return results
 
 
+def merge_frame_results(frame_results: List[FrameResult]) -> dict:
+    """Merge kết quả của nhiều thuật toán trên cùng một ảnh/frame.
+
+    Ý tưởng:
+    - Dùng cùng 1 ảnh để cả 3 thuật toán đưa ra kết quả.
+    - Lấy điểm tai nạn của mỗi thuật toán (accident_confidence).
+    - Tính trung bình điểm của 3 thuật toán.
+    - Chọn thuật toán có điểm gần nhất với giá trị trung bình.
+    - Trả về thuật toán đại diện cùng kết quả tổng hợp.
+    """
+    if not frame_results:
+        return {
+            "average_accident_confidence": 0.0,
+            "selected_algorithm": None,
+            "selected_result": None,
+            "scores": {},
+            "is_accident": False,
+        }
+
+    scores = {
+        fr.algorithm: fr.accident_confidence
+        for fr in frame_results
+    }
+    average_score = float(np.mean(list(scores.values())))
+    selected_result = min(
+        frame_results,
+        key=lambda fr: abs(fr.accident_confidence - average_score)
+    )
+
+    return {
+        "average_accident_confidence": average_score,
+        "selected_algorithm": selected_result.algorithm,
+        "selected_result": selected_result,
+        "scores": scores,
+        "is_accident": selected_result.accident_detected,
+        "selected_confidence": selected_result.accident_confidence,
+    }
+
+
 def nms(detections: List[Detection], iou_threshold: float = 0.45) -> List[Detection]:
     """Non-Maximum Suppression đơn giản"""
     if not detections:
