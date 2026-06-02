@@ -5,22 +5,36 @@ from flask import Flask, render_template_string, request, jsonify, Response
 import cv2, numpy as np
 from PIL import Image
 from ultralytics import YOLO
+from src.detection import Algorithm, merge_frame_results, simulate_detection
 
 app = Flask(__name__)
 
 # ── Load Model ──────────────────────────────────────────────────────────────
 MODEL_PATH, MODEL_ERROR, model = "", "", None
-for c in ["accident_best.pt", "best.pt", "models/best.pt"]:
-    if Path(c).exists():
-        MODEL_PATH = c; break
-if MODEL_PATH:
-    try:
-        model = YOLO(MODEL_PATH)
-        print(f"✅ Model loaded: {MODEL_PATH}")
-    except Exception as e: 
-        MODEL_ERROR = str(e)
-else:
-    MODEL_ERROR = "Không tìm thấy file .pt trong models/"
+
+# Ưu tiên checkpoint local; nếu chưa có thì fallback về pretrained YOLOv8s để app vẫn chạy.
+model_candidates = [
+  "accident_best.pt",
+  "best.pt",
+  "models/best.pt",
+  "Models/yolov8s_accident_best.pt",
+  "Models/yolov8s_accident.pt",
+  "Models/yolov8s.pt",
+]
+
+for c in model_candidates:
+  if Path(c).exists():
+    MODEL_PATH = c
+    break
+
+if not MODEL_PATH:
+  MODEL_PATH = "yolov8s.pt"
+
+try:
+  model = YOLO(MODEL_PATH)
+  print(f"✅ Model loaded: {MODEL_PATH}")
+except Exception as e:
+  MODEL_ERROR = f"Không tải được model '{MODEL_PATH}': {e}"
 
 CLASS_COLORS = {
     "accident":(0,0,255),"crash":(0,0,255),"near_miss":(0,165,255),
@@ -36,7 +50,7 @@ def draw_boxes(frame, results, conf_thr=0.4):
             if conf<conf_thr: continue
             x1,y1,x2,y2=map(int,box)
             lbl=results[0].names.get(cid,str(cid))
-            ia = (lbl.lower() in ("accident", "crash", "collision")) or (cid == 0)
+            ia = lbl.lower() in ("accident", "crash", "collision")
             col=(0,0,255) if ia else CLASS_COLORS.get(lbl,(200,200,200))
             if ia: acc=True; ac=max(ac,float(conf))
             cv2.rectangle(out,(x1,y1),(x2,y2),col,3 if ia else 2)
@@ -132,6 +146,7 @@ footer{text-align:center;padding:14px;color:#3a5a7a;font-size:.72rem;border-top:
 <div class="tabs">
   <div class="tab active" onclick="showTab('detect',this)">🔴 Live Detection</div>
   <div class="tab" onclick="showTab('compare',this)">📊 So sánh thuật toán</div>
+  <div class="tab" onclick="showTab('merge',this)">🎯 Merge</div>
   <div class="tab" onclick="showTab('perf',this)">📈 Hiệu suất</div>
   <div class="tab" onclick="showTab('log',this)">🚑 Nhật ký</div>
 </div>
@@ -195,6 +210,23 @@ footer{text-align:center;padding:14px;color:#3a5a7a;font-size:.72rem;border-top:
 
 <div class="panel" id="tab-compare">
   <div class="cb"><h3>🕸️ Algorithm Comparison</h3><canvas id="rc"></canvas></div>
+</div>
+<div class="panel" id="tab-merge">
+  <div class="cb">
+    <h3>🎯 Merge 3 thuật toán</h3>
+    <p style="margin-bottom:12px;color:#7a9cc4;line-height:1.5rem">
+      Chọn 1 ảnh để hệ thống so sánh kết quả giả lập của YOLOv8, SSD MobileNet và Faster R-CNN,
+      rồi chọn thuật toán có điểm tai nạn gần nhất với trung bình.
+    </p>
+    <div class="ctrls" style="flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="cg"><label>Ảnh merge</label><input type="file" id="merge_file" accept="image/*"></div>
+      <button class="btn-go" onclick="runMerge()">🔀 Merge kết quả</button>
+    </div>
+    <div id="merge_info" class="card">
+      <h3>Kết quả tổng hợp</h3>
+      <p>Chưa có kết quả. Chọn ảnh và bấm Merge để xem.</p>
+    </div>
+  </div>
 </div>
 <div class="panel" id="tab-perf">
   <div class="cb"><h3>📈 Accuracy Over Time</h3><canvas id="mc"></canvas></div>
@@ -292,6 +324,27 @@ async function go(){
 }
 function stop(){running=false;}
 
+async function runMerge(){
+  const f=document.getElementById('merge_file').files[0];
+  if(!f){alert('Chọn ảnh để Merge!'); return;}
+  const fd=new FormData(); fd.append('file',f);
+  const r=await fetch('/merge_image',{method:'POST',body:fd});
+  const data=await r.json();
+  if(data.error){alert(data.error); return;}
+  document.getElementById('merge_info').innerHTML = `
+    <h3>Kết quả tổng hợp</h3>
+    <p style="color:#7a9cc4;margin-bottom:10px">${data.note}</p>
+    <table class="dt"><thead><tr><th>Thuật toán</th><th>Detected</th><th>Confidence</th></tr></thead><tbody>
+      ${data.algorithms.map(a=>`<tr><td>${a.algorithm}</td><td>${a.accident_detected? '✅' : '❌'}</td><td>${a.accident_confidence}</td></tr>`).join('')}
+    </tbody></table>
+    <div style="margin-top:12px;line-height:1.6">
+      <div><b>Điểm trung bình:</b> ${data.average_accident_confidence}</div>
+      <div><b>Thuật toán chọn:</b> ${data.selected_algorithm} (${data.selected_confidence})</div>
+      <div><b>Kết luận:</b> ${data.is_accident ? '🚨 Tai nạn' : '✅ Bình thường'}</div>
+    </div>
+  `;
+}
+
 function buildCompare(){
   new Chart(document.getElementById('rc'),{type:'radar',data:{
     labels:['mAP','Precision','Recall','FPS'],
@@ -317,6 +370,34 @@ def detect_image():
     res=model.predict(img,conf=conf,iou=iou,verbose=False)
     ann,det,acc,ac=draw_boxes(img,res,conf)
     return jsonify({"image":to_b64(ann),"detections":det,"accident":acc,"acc_conf":f"{ac:.1%}" if ac else ""})
+
+@app.route('/merge_image', methods=['POST'])
+def merge_image():
+    f=request.files.get('file')
+    if f is None:
+        return jsonify({'error':'Không tìm thấy ảnh để Merge.'})
+    img=cv2.cvtColor(np.array(Image.open(f.stream).convert('RGB')),cv2.COLOR_RGB2BGR)
+    algorithms=[Algorithm.YOLOV8, Algorithm.SSD_MOBILENET, Algorithm.FASTER_RCNN]
+    frame_results=[simulate_detection(img, algorithm=a, conf_threshold=0.3, iou_threshold=0.45) for a in algorithms]
+    merged=merge_frame_results(frame_results)
+    return jsonify({
+        'note':'Kết quả merge mô phỏng từ 3 thuật toán.',
+        'average_accident_confidence':f"{merged['average_accident_confidence']:.1%}",
+        'selected_algorithm':merged['selected_algorithm'],
+        'selected_confidence':f"{merged['selected_confidence']:.1%}",
+        'is_accident':merged['is_accident'],
+        'algorithms': [
+            {
+                'algorithm': fr.algorithm,
+                'accident_detected': fr.accident_detected,
+                'accident_confidence': f"{fr.accident_confidence:.1%}",
+                'fps': round(fr.fps,1),
+                'latency_ms': round(fr.latency_ms,1),
+                'objects': len(fr.detections),
+            }
+            for fr in frame_results
+        ]
+    })
 
 @app.route("/detect_video",methods=["POST"])
 def detect_video():
