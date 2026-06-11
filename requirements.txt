@@ -2,6 +2,7 @@
 # Cài đặt: pip install -r requirements.txt
 
 # Dashboard
+Flask==3.0.3
 streamlit==1.35.0
 plotly==5.22.0
 

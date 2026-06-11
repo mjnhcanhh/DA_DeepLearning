@@ -1,0 +1,151 @@
+/* ══════════════════════════════════════════════════════════════════
+   PATCH CSS — thêm vào cuối file style.css hiện có
+   1. Level-1 card màu VÀNG (cảnh báo sắp tai nạn)
+   2. Checkbox 2 chiều trên tất cả ảnh
+   3. Panel so sánh 2 mô hình
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Level-1: Vàng ─────────────────────────────────────────────── */
+.img-card.level-1 {
+  border-color: #f59e0b !important;   /* amber-500 */
+  box-shadow: 0 0 0 2px rgba(245,158,11,.35) !important;
+}
+
+/* Badge level-1 */
+.card-badge.b1 {
+  background: #f59e0b !important;     /* amber */
+  color: #1a1a1a !important;
+}
+
+/* Level-1 row trong detection table */
+tr.warn td { color: #f59e0b !important; }
+
+/* swarn class cho status text (video/webcam) */
+.swarn { color: #f59e0b !important; }
+
+/* abox-warn đổi sang vàng */
+.abox-warn {
+  background: rgba(245,158,11,.12) !important;
+  border-left: 4px solid #f59e0b !important;
+  color: #f59e0b !important;
+}
+
+/* ── Checkbox 2 chiều ──────────────────────────────────────────── */
+.card-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  background: rgba(255,255,255,.06);
+  border-radius: 5px;
+  margin: 4px 6px 0;
+  cursor: pointer;
+  font-size: .7rem;
+  transition: background .15s;
+}
+.card-checkbox-wrap:hover { background: rgba(255,255,255,.12); }
+.card-checkbox-wrap input[type=checkbox] { cursor: pointer; accent-color: #f59e0b; }
+.card-checkbox-label { color: #cbd5e1; user-select: none; }
+
+/* Khi checked: đánh dấu toàn card bằng viền đỏ nhạt */
+.img-card:has(.card-checkbox-wrap input:checked) {
+  outline: 2px dashed #ef4444;
+  outline-offset: 2px;
+}
+
+/* ── Panel so sánh 2 mô hình ───────────────────────────────────── */
+#compare-result {
+  margin-top: 18px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.compare-title {
+  font-size: .95rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 14px;
+}
+
+.compare-hint {
+  font-size: .82rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.compare-grid {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.compare-col {
+  flex: 1;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  transition: border-color .2s;
+}
+.compare-col.compare-winner {
+  border-color: rgba(34,197,94,.45);
+  background: rgba(34,197,94,.07);
+}
+
+.compare-vs {
+  display: flex;
+  align-items: center;
+  font-size: .85rem;
+  font-weight: 700;
+  color: #475569;
+  padding: 0 4px;
+}
+
+.compare-algo-name {
+  font-size: .8rem;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.compare-pct {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.compare-detail {
+  font-size: .7rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+.compare-crown {
+  margin-top: 6px;
+  font-size: .72rem;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.compare-summary {
+  font-size: .8rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.btn-sm {
+  font-size: .75rem;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-ghost {
+  background: rgba(255,255,255,.07);
+  color: #94a3b8;
+}
+.btn-ghost:hover { background: rgba(255,255,255,.13); }

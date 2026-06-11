@@ -1,0 +1,778 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Accident Detection</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+/* ── YOLOv12 badge ── */
+.badge-yolo12 { background:#ecfdf5; color:#059669; border-color:#a7f3d0; }
+.algo-btn.yolo12 { border-color:#a7f3d0; color:#059669; }
+.algo-btn.yolo12.active { background:#059669; color:white; border-color:#059669; }
+.badge-ssd { background:#fffbeb; color:#d97706; border-color:#fcd34d; }
+.algo-btn.ssd { border-color:#fcd34d; color:#d97706; }
+.algo-btn.ssd.active { background:#f59e0b; color:white; border-color:#f59e0b; }
+.compare-grid { display:grid; gap:16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══ PERF TAB STYLES ══════════════════════════════════════════════ */
+.perf-section-title {
+  font-size:.78rem;font-weight:700;color:#475569;
+  text-transform:uppercase;letter-spacing:.6px;
+  margin:20px 0 10px;
+  display:flex;align-items:center;gap:8px;
+}
+.perf-section-title::after {
+  content:'';flex:1;height:1px;background:#e2e8f0;
+}
+
+/* KPI Cards */
+#perf-kpi-grid {
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:4px;
+}
+.perf-kpi-card {
+  background:white;border:1px solid #e2e8f0;border-radius:12px;
+  padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.06);
+  transition:transform .2s,box-shadow .2s;
+}
+.perf-kpi-card:hover { transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.1); }
+.perf-kpi-header {
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:12px;
+}
+.perf-kpi-status {
+  font-size:.68rem;color:#94a3b8;font-weight:500;
+  background:#f8fafc;padding:2px 8px;border-radius:20px;
+  transition:all .3s;
+}
+.perf-kpi-row {
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;
+}
+.perf-kpi-stat { text-align:center; }
+.perf-kpi-val {
+  font-size:1.3rem;font-weight:800;
+  font-family:'JetBrains Mono',monospace;line-height:1;
+  transition:transform .18s;
+}
+.perf-kpi-lbl { font-size:.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-top:3px; }
+.perf-speed-bar-wrap { margin-top:4px; }
+.perf-speed-track {
+  height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden;
+}
+.perf-speed-fill {
+  height:100%;border-radius:99px;
+  transition:width .5s cubic-bezier(.4,0,.2,1);
+}
+
+/* Stress Test controls */
+.stress-controls {
+  background:white;border:1px solid #e2e8f0;border-radius:12px;
+  padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.06);
+  margin-bottom:14px;
+}
+.stress-controls-row {
+  display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:12px;
+}
+#stress-btn {
+  background:#2563eb;color:white;border:none;border-radius:8px;
+  padding:8px 22px;font-size:.85rem;font-weight:700;cursor:pointer;
+  transition:background .2s,transform .1s;
+  font-family:'DM Sans',sans-serif;
+}
+#stress-btn:hover { transform:scale(1.03); }
+
+/* Progress bar stress */
+#stress-prog-wrap { display:none;margin-bottom:10px; }
+.stress-prog-track {
+  height:8px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-bottom:4px;
+}
+#stress-pb {
+  height:100%;width:0%;
+  background:linear-gradient(90deg,#2563eb,#059669);
+  border-radius:99px;transition:width .3s;
+}
+
+/* Live Charts area */
+.perf-live-grid {
+  display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px;
+}
+.perf-chart-card {
+  background:white;border:1px solid #e2e8f0;border-radius:12px;
+  padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.perf-chart-card h4 {
+  font-size:.72rem;color:#64748b;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;
+}
+
+/* Log */
+#stress-log {
+  max-height:120px;overflow-y:auto;
+  background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+  padding:8px 10px;font-family:'JetBrains Mono',monospace;
+}
+
+/* Summary table */
+#stress-summary {
+  display:none;
+  background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;
+  padding:16px;margin-top:14px;
+}
+
+/* Static perf charts */
+.perf-static-grid {
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;
+}
+
+.metric.warn,
+.folder-card.f-warn,
+.legend-strip .dot-warn,
+.legend-strip span:has(.dot-warn),
+#grid-warn {
+  display: none !important;
+}
+
+.dispatch-plan {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.dispatch-heading {
+  font-size: .76rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.dispatch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.dispatch-unit {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 8px;
+}
+.dispatch-title {
+  font-size: .78rem;
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 4px;
+}
+.dispatch-log {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.btn-dispatch {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #fff !important;
+}
+.compare-placeholder {
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 22px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  min-height: 120px;
+}
+.compare-placeholder-title {
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.compare-placeholder-text {
+  font-size: .82rem;
+  line-height: 1.7;
+}
+#tab-perf .perf-static-grid,
+#tab-perf .cf,
+#tab-perf .rank-grid {
+  display: none !important;
+}
+#tab-perf .perf-section-title:has(+ .perf-static-grid),
+#tab-perf .perf-section-title:has(+ .cf),
+#tab-perf .perf-section-title:has(+ .rank-grid) {
+  display: none !important;
+}
+.unit-marker,
+.incident-map-marker {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid #2563eb;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, .22);
+  font-size: 17px;
+}
+.unit-marker.ambulance {
+  border-color: #dc2626;
+}
+.incident-map-marker {
+  width: 36px;
+  height: 36px;
+  border-color: #dc2626;
+  background: #fee2e2;
+}
+.incident-map-marker.dispatched {
+  border-color: #16a34a;
+  background: #dcfce7;
+}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+<header>
+  <div class="header-icon">🚨</div>
+  <div>
+    <h1>Hệ Thống AI Nhận Diện Tai Nạn Giao Thông</h1>
+    <span class="header-sub">Real-time Detection &amp; Emergency Response</span>
+  </div>
+  <span class="badge badge-ssd" id="active-badge">SSD</span>
+  <span id="clk"></span>
+</header>
+
+<!-- ══ METRICS ═════════════════════════════════════════════════════ -->
+<div class="metrics">
+  <div class="metric">
+    <div class="val" id="m-map">N/A</div>
+    <div class="lbl">🎯 mAP@0.5</div>
+  </div>
+  <div class="metric">
+    <div class="val" id="m-fps">N/A</div>
+    <div class="lbl">⚡ FPS</div>
+  </div>
+  <div class="metric">
+    <div class="val" id="m-lat">N/A</div>
+    <div class="lbl">⏱ Latency</div>
+  </div>
+  <div class="metric danger">
+    <div class="val" id="ma">0</div>
+    <div class="lbl">🚨 Tai nạn</div>
+  </div>
+  <div class="metric warn">
+    <div class="val" id="mw">0</div>
+    <div class="lbl">⚠️ Cảnh báo</div>
+  </div>
+</div>
+
+<!-- ══ TABS ════════════════════════════════════════════════════════ -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('detect',this)">🔴 Live Detection</div>
+  <div class="tab" onclick="showTab('compare',this)">📊 So sánh thuật toán</div>
+  <div class="tab" onclick="showTab('perf',this)">📈 Hiệu suất</div>
+  <div class="tab" onclick="showTab('log',this)">🚑 Nhật ký</div>
+  <div class="tab" onclick="showTab('map',this);initCameraMap()">🗺️ Bản đồ Camera</div>
+</div>
+
+<!-- ══ TAB: DETECT ═════════════════════════════════════════════════ -->
+<div class="panel active" id="tab-detect">
+  <div class="algo-bar">
+    <span style="font-size:.78rem;color:#64748b;font-weight:500">Thuật toán:</span>
+    <button class="algo-btn ssd active" id="btn-ssd"
+            onclick="setAlgo('ssd','SSD','badge-ssd','N/A','N/A','N/A')">🏆 SSD</button>
+    <button class="algo-btn rcnn" id="btn-faster_rcnn"
+            onclick="setAlgo('faster_rcnn','Faster R-CNN','badge-rcnn','63.8%','7.4','135ms')">🥈 Faster R-CNN</button>
+    <button class="algo-btn yolo12" id="btn-yolov12"
+            onclick="setAlgo('yolov12','YOLOv12','badge-yolo12','N/A','N/A','N/A')">🆕 YOLOv12</button>
+    <span class="algo-info" id="algo-status">✅ SSD — {{ algo_statuses.ssd }}</span>
+  </div>
+  <div class="legend-strip">
+    <span><span class="level-dot dot-acc"></span>🚨 TAI NẠN (va chạm)</span>
+    <span><span class="level-dot dot-warn"></span>⚠️ CẢNH BÁO (suýt va chạm)</span>
+    <span><span class="level-dot dot-ok"></span>✅ BÌNH THƯỜNG</span>
+  </div>
+  <div class="ctrls">
+    <div class="cg">
+      <label>Nguồn</label>
+      <select id="src" onchange="toggleSrc()">
+        <option value="image">📷 Upload ảnh (nhiều file)</option>
+        <option value="video">🎥 Upload video</option>
+        <option value="webcam">📹 Webcam</option>
+      </select>
+    </div>
+    <div class="cg" id="fg">
+      <label>File <span id="file-count-label" style="color:var(--blue-500);font-weight:600">(chọn nhiều)</span></label>
+      <input type="file" id="fi" accept="image/*" multiple>
+    </div>
+    <div class="cg">
+      <label>Confidence: <b id="cv" style="color:var(--blue-600)">0.15</b></label>
+      <input type="range" id="conf" min="0.1" max="0.9" step="0.05" value="0.15"
+             oninput="document.getElementById('cv').textContent=parseFloat(this.value).toFixed(2)">
+    </div>
+    <div class="cg">
+      <label>IoU: <b id="iv" style="color:var(--blue-600)">0.45</b></label>
+      <input type="range" id="iou" min="0.1" max="0.9" step="0.05" value="0.45"
+             oninput="document.getElementById('iv').textContent=parseFloat(this.value).toFixed(2)">
+    </div>
+    <button class="btn-go" onclick="go()">▶ Nhận diện</button>
+    <button class="btn-stop" onclick="stop()">⏹ Dừng</button>
+    <div class="cg" id="grid-cols-wrap">
+      <label>Grid cols</label>
+      <select id="grid-cols" onchange="applyGridCols()">
+        <option value="2">2 cột</option>
+        <option value="3" selected>3 cột</option>
+        <option value="4">4 cột</option>
+        <option value="5">5 cột</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- MULTI IMAGE -->
+  <div class="img-grid-wrap" id="multi-wrap">
+    <div class="folder-summary">
+      <div class="folder-card f-ok">
+        <div class="folder-icon">✅</div>
+        <div class="folder-info"><div class="cnt" id="folder-ok">0</div><div class="name">Bình thường</div></div>
+      </div>
+      <div class="folder-card f-warn">
+        <div class="folder-icon">⚠️</div>
+        <div class="folder-info"><div class="cnt" id="folder-warn">0</div><div class="name">Dự đoán nguy cơ</div></div>
+      </div>
+      <div class="folder-card f-acc">
+        <div class="folder-icon">🚨</div>
+        <div class="folder-info"><div class="cnt" id="folder-acc">0</div><div class="name">Tai nạn phát hiện</div></div>
+      </div>
+    </div>
+    <div class="img-grid-header">
+      Kết quả: <b id="grid-done">0</b> / <b id="grid-total">0</b> ảnh &nbsp;|&nbsp;
+      🚨 <b id="grid-acc" style="color:var(--red-500)">0</b> &nbsp;
+
+      <b id="grid-warn" style="display:none">0</b>
+      ✅ <b id="grid-ok" style="color:var(--green-500)">0</b>
+    </div>
+    <div class="prog" id="multi-prog"><div class="pb" id="multi-pb" style="width:0%"></div></div>
+    <div class="img-grid" id="img-grid"></div>
+    <div class="accuracy-panel" id="accuracy-panel">
+      <h3>🎯 Kiểm tra độ chính xác mô hình</h3>
+      <p id="calc-acc-info" style="font-size:.8rem;color:#64748b;margin-bottom:12px">
+        Tích ô checkbox trên ảnh mà <b>model đoán sai</b>, rồi nhấn tính tỉ lệ.
+      </p>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn-calc-acc" onclick="calcAccuracy()">📊 Tính tỉ lệ chính xác</button>
+        <span style="font-size:.76rem;color:#94a3b8">(tối đa 50 ảnh, ô không tích = model đoán đúng)</span>
+      </div>
+      <div class="acc-result" id="acc-result" style="display:none">
+        <div class="acc-big" id="acc-big">—</div>
+        <div class="acc-breakdown">
+          <span>✅ Đúng: <b id="acc-correct">—</b> ảnh</span>
+          <span>❌ Sai:  <b id="acc-wrong">—</b> ảnh</span>
+          <span>📋 Tổng: <b id="acc-total">—</b> ảnh (≤50)</span>
+        </div>
+      </div>
+      <div id="compare-result" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- SINGLE VIEW -->
+  <div id="single-wrap" style="display:none">
+    <div class="dg">
+      <div>
+        <div class="vbox" id="vb">
+          <div class="ph" id="ph">
+            <div class="ic">📸</div>
+            <p>Upload ảnh / video hoặc chọn Webcam<br>rồi nhấn <b>Nhận diện</b></p>
+            <div style="margin-top:12px;font-size:.76rem;color:#94a3b8">
+              Model: <span style="color:var(--blue-500)" id="model-path-ph">{{ model_path_default }}</span>
+            </div>
+          </div>
+          <img id="ri" style="display:none" alt="Detection result">
+        </div>
+        <div class="prog" id="vp" style="display:none"><div class="pb" id="pb" style="width:0%"></div></div>
+        <div id="vi" style="font-size:.75rem;color:#94a3b8;margin-top:4px"></div>
+      </div>
+      <div class="sp">
+        <div class="card"><h3>Trạng thái</h3>
+          <div id="st" class="snormal">⬤ Chờ input...</div>
+          <div id="cd" style="font-size:.76rem;color:#94a3b8;margin-top:5px"></div>
+        </div>
+        <div class="card temporal-card temporal-normal" id="temporal-panel" style="display:none">
+          <h3>Temporal AI Decision</h3>
+          <div class="temporal-head">
+            <span id="temporal-state">NORMAL</span>
+            <b id="temporal-risk">0%</b>
+          </div>
+          <div class="temporal-track"><div id="temporal-risk-bar"></div></div>
+          <div class="temporal-grid">
+            <div><small>Voting</small><b id="temporal-votes">0/0 frames</b></div>
+            <div><small>Avg conf</small><b id="temporal-conf">0.00</b></div>
+          </div>
+          <div id="temporal-note" class="temporal-note"></div>
+          <div id="temporal-incident" class="temporal-incident" style="display:none"></div>
+        </div>
+        <div class="card"><h3>Đối tượng phát hiện</h3>
+          <table class="dt">
+            <thead><tr><th>Loại</th><th>Tin cậy</th><th>Mức</th></tr></thead>
+            <tbody id="db"><tr><td colspan="3" style="color:#94a3b8">Chưa có</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card"><h3>Thống kê phiên</h3>
+          <div style="font-size:.82rem;line-height:2.1">
+            Frames xử lý: <b id="sf">0</b><br>
+            🚨 Tai nạn: <b id="sa" style="color:var(--red-500)">0</b><br>
+            ⚠️ Cảnh báo: <b id="sw" style="color:var(--amber-500)">0</b><br>
+            Tỉ lệ nguy hiểm: <b id="sr">0%</b>
+          </div>
+        </div>
+        <div class="card" id="alert-card" style="display:none">
+          <h3>🔔 Cảnh báo mới nhất</h3>
+          <div id="latest-alert"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: COMPARE ════════════════════════════════════════════════ -->
+<div class="panel" id="tab-compare">
+  <div class="info-bar" style="margin-bottom:18px">
+    🔬 <b>So sánh THẬT 3 thuật toán:</b> Upload ảnh → hệ thống tự chạy cả 3 model → hiển thị kết quả, biểu đồ và phân tích tự động.
+  </div>
+  <div id="bench-status-row" style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap"></div>
+  <div class="ctrls" style="margin-bottom:18px;align-items:flex-end">
+    <div class="cg"><label>Ảnh test (1 ảnh)</label><input type="file" id="bench-file" accept="image/*"></div>
+    <div class="cg">
+      <label>Confidence: <b id="bench-cv">0.15</b></label>
+      <input type="range" id="bench-conf" min="0.1" max="0.9" step="0.05" value="0.15"
+             oninput="document.getElementById('bench-cv').textContent=parseFloat(this.value).toFixed(2)">
+    </div>
+    <div class="cg">
+      <label>IoU: <b id="bench-iv">0.45</b></label>
+      <input type="range" id="bench-iou" min="0.1" max="0.9" step="0.05" value="0.45"
+             oninput="document.getElementById('bench-iv').textContent=parseFloat(this.value).toFixed(2)">
+    </div>
+    <button class="btn-go" id="bench-run-btn" onclick="runBenchmark()">🔬 So sánh ngay</button>
+  </div>
+  <div id="bench-loading" style="display:none;text-align:center;padding:40px 0">
+    <div style="font-size:2rem;animation:spin 1s linear infinite;display:inline-block">⚙️</div>
+    <p style="color:#64748b;margin-top:12px">Đang chạy <b id="bench-loading-msg">inference...</b></p>
+    <div style="width:100%;max-width:400px;margin:12px auto;background:#e2e8f0;height:6px;border-radius:99px;overflow:hidden">
+      <div id="bench-prog-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#3b82f6,#7c3aed);transition:width .4s;border-radius:99px"></div>
+    </div>
+    <div id="bench-prog-steps" style="font-size:.75rem;color:#94a3b8;margin-top:6px"></div>
+  </div>
+  <div id="bench-results" style="display:none">
+    <h3 style="font-size:.85rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📸 Kết quả nhận diện — 3 model trên cùng ảnh</h3>
+    <div id="bench-img-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px"></div>
+    <h3 style="font-size:.85rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📊 Bảng so sánh metrics thật</h3>
+    <div style="overflow-x:auto;margin-bottom:24px">
+      <table id="bench-table" style="width:100%;border-collapse:collapse;font-size:.82rem;background:white;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        <thead><tr style="background:#f8fafc">
+          <th style="padding:10px 14px;text-align:left;color:#475569;border-bottom:2px solid #e2e8f0">Model</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">Kết quả</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">Confidence</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">⚡ Inference (ms)</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">🎯 FPS thực</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">Số box</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">mAP@0.5</th>
+          <th style="padding:10px 14px;text-align:center;color:#475569;border-bottom:2px solid #e2e8f0">Size</th>
+        </tr></thead>
+        <tbody id="bench-table-body"></tbody>
+      </table>
+    </div>
+    <h3 style="font-size:.85rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📈 Biểu đồ so sánh trực quan</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+      <div class="cb"><h3 style="font-size:.8rem;font-weight:600;color:#64748b;margin-bottom:10px">⚡ Tốc độ inference (ms)</h3><canvas id="bench-speed-chart" height="180"></canvas></div>
+      <div class="cb"><h3 style="font-size:.8rem;font-weight:600;color:#64748b;margin-bottom:10px">🎯 Confidence phát hiện</h3><canvas id="bench-conf-chart" height="180"></canvas></div>
+      <div class="cb"><h3 style="font-size:.8rem;font-weight:600;color:#64748b;margin-bottom:10px">🕸️ Radar tổng quan</h3><canvas id="bench-radar-chart" height="180"></canvas></div>
+    </div>
+    <h3 style="font-size:.85rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📋 Báo cáo phân tích tự động</h3>
+    <div id="bench-report" style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;font-size:.84rem;line-height:1.9;color:#374151;box-shadow:0 1px 4px rgba(0,0,0,.06)"></div>
+    <h3 style="font-size:.85rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:24px 0 12px">📚 Thông số kỹ thuật từng model</h3>
+    <div class="rank-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card" style="border-left:4px solid #2563eb">
+        <h3 style="color:#2563eb">🏆 SSD — Tốc độ cao</h3>
+        <div style="font-size:.8rem;line-height:2;margin-top:6px">
+          mAP@0.5: <b style="color:#2563eb">N/A</b><br>FPS: N/A | Latency: N/A | Size: 22MB<br>
+          <b style="color:#16a34a">✅ Ưu:</b> Nhanh nhất, real-time<br>
+          <b style="color:#dc2626">⚠️ Nhược:</b> Accuracy thấp hơn RCNN
+        </div>
+      </div>
+      <div class="card" style="border-left:4px solid #7c3aed">
+        <h3 style="color:#7c3aed">🥈 Faster R-CNN — Chính xác cao</h3>
+        <div style="font-size:.8rem;line-height:2;margin-top:6px">
+          mAP@0.5: <b style="color:#7c3aed">~63.8%</b><br>FPS: ~7.4 | Latency: 135ms | Size: 167MB<br>
+          <b style="color:#16a34a">✅ Ưu:</b> Chính xác nhất, vật thể nhỏ<br>
+          <b style="color:#dc2626">⚠️ Nhược:</b> Chậm, nặng, edge device khó
+        </div>
+      </div>
+      <div class="card" style="border-left:4px solid #059669">
+        <h3 style="color:#059669">🆕 YOLOv12 — Attention-based</h3>
+        <div style="font-size:.8rem;line-height:2;margin-top:6px">
+          mAP@0.5: <b style="color:#059669">N/A</b><br>FPS: N/A | Latency: N/A | Size: 6MB<br>
+          <b style="color:#16a34a">✅ Ưu:</b> Mới nhất, cân bằng tốt<br>
+          <b style="color:#dc2626">⚠️ Nhược:</b> Mới, ít tài liệu
+        </div>
+      </div>
+    </div>
+  </div><!-- /bench-results -->
+  <div id="bench-static-charts" style="margin-top:10px">
+    <div class="cg2">
+      <div class="cb"><h3>🕸️ Radar: Tổng quan đa chiều</h3><canvas id="rc2"></canvas></div>
+      <div class="cb"><h3>📊 Bar: So sánh Accuracy</h3><canvas id="bc2"></canvas></div>
+    </div>
+    <div class="cf">
+      <h3>🎯 Bubble: Speed vs Accuracy (● size = Model size MB)</h3>
+      <canvas id="buc2" style="height:230px"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: PERF — LIVE PERFORMANCE MONITOR ═════════════════════════ -->
+<!-- ══ TAB: HIỆU SUẤT ══════════════════════════════════════════════ -->
+<div class="panel" id="tab-perf">
+
+  <!-- Info banner -->
+  <div class="info-bar">
+    ⚡ <b>Live Performance Monitor</b> — Upload ảnh test → chạy Stress Test → hệ thống đo thật latency &amp; FPS của từng model theo thời gian thực. Biểu đồ cập nhật sau mỗi vòng đo.
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="perf-section-title">🏎️ Thông số 3 Model (theo cấu hình)</div>
+  <div id="perf-kpi-grid"><!-- filled by JS --></div>
+
+  <!-- ── Stress Test ── -->
+  <div class="perf-section-title">🧪 Stress Test — Đo thật nhiều lần liên tiếp</div>
+
+  <!-- Giải thích stress test -->
+  <div style="background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:16px 20px;margin-bottom:16px;font-size:.82rem;color:#78350f;line-height:1.9">
+    <b>🔍 Stress Test là gì?</b> Hệ thống sẽ chạy <b>cả 3 model</b> lần lượt trên cùng 1 ảnh, lặp lại nhiều vòng, và ghi lại thời gian xử lý từng lần.
+    Mục đích: đánh giá <b>tốc độ trung bình thực tế</b> và <b>tính ổn định</b> (Std Dev) của mỗi model — điều một lần đo duy nhất không phản ánh được.
+    <br><b>Các chỉ số thu được:</b>
+    &nbsp;⚡ <b>FPS</b> (≥30 full real-time, 15–29 gần real-time khi có frame-skip) &nbsp;·&nbsp;
+    ⏱ <b>Latency TB</b> (ms/ảnh) &nbsp;·&nbsp;
+    📐 <b>Std Dev</b> (dao động — nhỏ = ổn định) &nbsp;·&nbsp;
+    📈 <b>P95</b> (worst-case thực tế của 95% trường hợp)
+  </div>
+
+  <div class="stress-controls">
+    <div class="stress-controls-row">
+      <div class="cg"><label>Ảnh test (1 ảnh)</label><input type="file" id="stress-file" accept="image/*"></div>
+      <div class="cg">
+        <label>Số vòng đo: <b id="stress-n-lbl">10</b></label>
+        <input type="range" id="stress-n" min="3" max="30" step="1" value="10"
+               oninput="document.getElementById('stress-n-lbl').textContent=this.value">
+      </div>
+      <div class="cg">
+        <label>Confidence: <b id="stress-conf-lbl">0.15</b></label>
+        <input type="range" id="stress-conf" min="0.1" max="0.9" step="0.05" value="0.15"
+               oninput="document.getElementById('stress-conf-lbl').textContent=parseFloat(this.value).toFixed(2)">
+      </div>
+      <div class="cg">
+        <label>IoU: <b id="stress-iou-lbl">0.45</b></label>
+        <input type="range" id="stress-iou" min="0.1" max="0.9" step="0.05" value="0.45"
+               oninput="document.getElementById('stress-iou-lbl').textContent=parseFloat(this.value).toFixed(2)">
+      </div>
+      <button id="stress-btn" onclick="startStressTest()">▶ Bắt đầu Stress Test</button>
+    </div>
+
+    <!-- Progress -->
+    <div id="stress-prog-wrap">
+      <div class="stress-prog-track"><div id="stress-pb"></div></div>
+      <div id="stress-pct" style="font-size:.72rem;color:#64748b;margin-top:3px"></div>
+    </div>
+
+    <!-- Log -->
+    <div id="stress-log" style="display:none"></div>
+  </div>
+
+  <!-- Live Charts -->
+  <div class="perf-section-title">📡 Live Monitor — Cập nhật sau mỗi vòng đo</div>
+  <div class="perf-live-grid">
+    <div class="perf-chart-card">
+      <h4>⏱ Latency (ms) theo từng vòng — <span style="color:#16a34a">thấp hơn = tốt hơn</span></h4>
+      <canvas id="perf-live-line" height="200"></canvas>
+    </div>
+    <div class="perf-chart-card">
+      <h4>🏁 FPS trung bình tích lũy — <span style="color:#16a34a">cao hơn = tốt hơn</span></h4>
+      <canvas id="perf-live-bar" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Summary + export -->
+  <div id="stress-summary" style="display:none"></div>
+
+  <!-- Nút xuất báo cáo -->
+  <div id="stress-export-wrap" style="display:none;gap:12px;align-items:center;margin:16px 0;padding:16px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
+    <div>
+      <div style="font-weight:700;font-size:.88rem;color:#15803d;margin-bottom:4px">📄 Xuất báo cáo so sánh</div>
+      <div style="font-size:.78rem;color:#166534">Báo cáo HTML đầy đủ: kết quả đo, giải thích chỉ số, khuyến nghị triển khai — có thể in hoặc chia sẻ</div>
+    </div>
+    <button onclick="exportReport()"
+            style="background:#16a34a;color:white;border:none;border-radius:8px;padding:10px 22px;font-size:.85rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+      ⬇️ Tải báo cáo (.html)
+    </button>
+  </div>
+
+  <!-- Training curves -->
+  <div class="perf-section-title">📚 Quá trình Training (50 Epochs)</div>
+  <div class="perf-static-grid">
+    <div class="cb"><h3>📉 Training Loss</h3><canvas id="lc"></canvas></div>
+    <div class="cb"><h3>📈 mAP@0.5</h3><canvas id="mc"></canvas></div>
+  </div>
+
+  <!-- Confusion Matrix -->
+  <div class="perf-section-title">🔢 Confusion Matrix — SSD (tập test)</div>
+  <div class="cf">
+    <h3 style="font-size:.85rem;color:#64748b;font-weight:400">Accident: 943 đúng (TP) / 12 sai (FN) &nbsp;·&nbsp; Non-Accident: 821 đúng (TN) / 15 sai (FP)</h3>
+    <canvas id="cc" style="height:260px"></canvas>
+  </div>
+
+  <!-- Giải thích chỉ số -->
+  <div class="perf-section-title">💡 Giải thích các chỉ số đánh giá</div>
+  <div class="rank-grid" style="grid-template-columns:repeat(2,1fr)">
+
+    <div class="card">
+      <h3 style="color:#2563eb">⚡ FPS &amp; Latency</h3>
+      <div style="font-size:.8rem;line-height:2;color:#475569">
+        <b>FPS (Frames Per Second):</b> Số ảnh model xử lý được mỗi giây. <b>≥30 FPS</b> là full real-time; <b>15–29 FPS</b> vẫn dùng được cho cảnh báo live nếu bỏ qua frame và dùng temporal voting.<br>
+        <b>Latency:</b> Thời gian từ lúc nhận ảnh đến khi có kết quả (ms). Latency càng thấp càng phản ứng nhanh.<br>
+        ✅ SSD và YOLOv12: chưa có benchmark FPS chính thức nên hiển thị N/A.<br>
+        ❌ Faster R-CNN: 7.4 FPS / 135ms, phù hợp phân tích hồi tố hơn real-time.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#7c3aed">🎯 mAP &amp; Confusion Matrix</h3>
+      <div style="font-size:.8rem;line-height:2;color:#475569">
+        <b>mAP@0.5:</b> Độ chính xác nhận diện trung bình ở ngưỡng IoU = 0.5 — chỉ số chính đánh giá chất lượng model.<br>
+        <b>TP (True Positive):</b> Dự đoán Tai nạn, thực tế là Tai nạn ✅<br>
+        <b>FP (False Positive):</b> Dự đoán Tai nạn, thực tế Bình thường ❌<br>
+        <b>TN (True Negative):</b> Dự đoán Bình thường, thực tế Bình thường ✅<br>
+        <b>FN (False Negative):</b> Bỏ sót Tai nạn — nguy hiểm nhất ⚠️
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#059669">📐 Std Dev &amp; P95</h3>
+      <div style="font-size:.8rem;line-height:2;color:#475569">
+        <b>Std Dev (Độ lệch chuẩn):</b> Đo mức dao động của latency. Nhỏ (&lt; 5ms) = model rất ổn định, kết quả nhất quán qua nhiều lần chạy.<br>
+        <b>P95 (Percentile 95):</b> Latency mà 95% trường hợp nằm dưới ngưỡng này. Phản ánh worst-case thực tế tốt hơn max (loại bỏ outlier).<br>
+        → Trong hệ thống real-time, Std Dev và P95 quan trọng không kém FPS trung bình.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#f59e0b">🏆 Kết luận so sánh</h3>
+      <div style="font-size:.8rem;line-height:2;color:#475569">
+        <b>Real-time camera:</b> ưu tiên model có FPS cao nhất sau Stress Test, thường là YOLOv12/SSD<br>
+        <b>Chính xác nhất:</b> Faster R-CNN (mAP 63.8%)<br>
+        <b>Cân bằng nhất:</b> YOLOv12 — chờ số benchmark thực tế để kết luận<br>
+        <b>Thiết bị nhúng:</b> chờ benchmark SSD/YOLOv12 trên phần cứng thực tế<br>
+        → Sau khi chạy Stress Test, nhấn <b>Tải báo cáo</b> để xuất file phân tích đầy đủ.
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /tab-perf -->
+<div class="panel" id="tab-log">
+  <div id="la"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h3 style="color:#64748b;font-size:.82rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px">📋 Nhật ký phiên này</h3>
+    <button class="btn-stop" onclick="clrLog()" style="font-size:.78rem;padding:5px 12px">🗑️ Xóa</button>
+  </div>
+  <div style="background:white;border:1px solid var(--slate-200);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm)">
+    <table class="lt">
+      <thead><tr>
+        <th>Thời gian</th><th>Thuật toán</th><th>Nguồn</th><th>Mức độ</th><th>Tin cậy</th>
+      </tr></thead>
+      <tbody id="lb">
+        <tr><td colspan="5" style="color:#94a3b8;text-align:center;padding:20px">Chưa có sự kiện nguy hiểm</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ MAP PANEL ═══════════════════════════════════════════════════ -->
+<div class="panel" id="tab-map">
+  <div class="map-toolbar">
+    <div>
+      <h2 style="margin:0;font-size:1.1rem;font-weight:700">🗺️ Bản đồ Camera HCMC</h2>
+      <p style="margin:2px 0 0;font-size:.78rem;color:#64748b">
+        <span id="map-camera-count">—</span> camera ảo · Ensemble 3 model
+      </p>
+    </div>
+    <div class="map-actions">
+      <button id="scan-cameras-btn" onclick="scanCameras()" style="background:#2563eb;color:white;border:none;border-radius:8px;padding:8px 18px;font-weight:700;cursor:pointer;font-size:.85rem">
+        🔍 Quét toàn bộ camera
+      </button>
+      <label style="background:#059669;color:white;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:.85rem;white-space:nowrap">
+        📤 Upload ảnh → camera ngẫu nhiên
+        <input type="file" accept="image/*,video/*" style="display:none" onchange="uploadRandomCameraImage(this)">
+      </label>
+    </div>
+  </div>
+
+  <div class="map-grid">
+    <!-- Bản đồ chính -->
+    <div>
+      <div id="camera-map" style="width:100%;height:420px;border-radius:12px;border:1px solid #e2e8f0;background:#f1f5f9;overflow:hidden"></div>
+      <div id="scan-summary" class="scan-summary" style="margin-top:8px;font-size:.82rem;color:#475569;min-height:20px"></div>
+    </div>
+
+    <!-- Panel bên phải: thống kê + danh sách sự cố -->
+    <div class="map-side">
+      <div class="map-stat">Camera online: <span id="map-camera-count-2">—</span></div>
+      <div class="map-stat danger">Sự cố đang mở: <b id="map-incident-count">0</b></div>
+      <div class="map-note">💡 Upload ảnh/video thật để chạy Ensemble (SSD + YOLOv12 + Faster R-CNN) và tự động tạo phiếu sự cố.</div>
+      <div class="map-note" id="feedback-stats">Feedback dataset: chưa có dữ liệu.</div>
+
+      <div style="font-size:.78rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px">
+        📡 Camera health
+      </div>
+      <div id="camera-health-list" style="max-height:180px;overflow-y:auto">
+        <div class="incident-empty">Chưa có dữ liệu health.</div>
+      </div>
+
+      <div style="font-size:.78rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px">
+        📋 Phiếu sự cố khẩn cấp
+      </div>
+      <div id="incident-list" style="max-height:340px;overflow-y:auto">
+        <div class="incident-empty">Chưa có phiếu sự cố khẩn cấp.</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-map -->
+
+<!-- ══ LIGHTBOX MODAL ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('modal').classList.remove('open')">&times;</button>
+    <img id="modal-img" src="" alt="Preview">
+    <div id="modal-info" style="font-size:.8rem;color:#64748b;margin-top:8px;text-align:center"></div>
+  </div>
+</div>
+
+<script id="algo-status-json" type="application/json">{{ algo_statuses_json | safe }}</script>
+<script>
+  window.ALGO_STATUS = JSON.parse(document.getElementById('algo-status-json').textContent || '{}');
+</script>
+<script src="{{ url_for('static', filename='js/main.js') }}?v=no-warn-5"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}?v=clean-tabs-1"></script>
+<script src="{{ url_for('static', filename='js/benchmark.js') }}?v=clean-tabs-1"></script>
+<!-- Leaflet for map tab -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/emergency.js') }}?v=dispatch-1"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}?v=road-route-1"></script>
+
+</body>
+</html>
